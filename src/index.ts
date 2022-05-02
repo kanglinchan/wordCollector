@@ -9,11 +9,9 @@ import {AppDataSource} from "./data-source";
 import {downloadAMDir, downloadEnDir, downloadTTSDir} from "./config";
 import {Word} from "./entity/Word";
 import {Part} from "./entity/Part";
-import wordJSON from '../wordSource/test'
+import wordJSON from '../wordSource/2000word'
 import {Media} from "./entity/Media";
 import logger from "./logger";
-import {Error} from "sequelize";
-
 
 
 function fetchWordTask(word:string){
@@ -23,7 +21,7 @@ function fetchWordTask(word:string){
             const data: wordResponse = res.data
             const symbol : Symbols = data.symbols[0]
             const exchange: Exchange = res.data.exchange  || {}
-            if(symbol){
+            if(symbol && exchange){
                 return {
                     word: data.word_name,
                     phAmMp3: symbol.ph_am_mp3,
@@ -81,57 +79,66 @@ function formatExchange(exchange: [] | string){
     return exchange
 }
 
-async function process(dataSource: DataSource, word: string){
-    logger.info(word)
-    const wordData = await fetchWordTask(word)
-    if(wordData){
-        logger.info(`${JSON.stringify(wordData)}`)
-        const amMp3 = await downloadResource(wordData.phAmMp3, downloadEnDir)
-        const enMp3 = await downloadResource(wordData.phEnMp3, downloadAMDir)
-        const ttsMp3 = await downloadResource(wordData.phTtsMp3, downloadTTSDir)
-        const amFileName = path.basename(amMp3)
-        const enFileName = path.basename(enMp3)
-        const ttsFileName = path.basename(ttsMp3)
-        const tts = new Media()
-        tts.wordName =  wordData.word
-        tts.fileName = ttsFileName
-        tts.type = MediaType.tts
-        tts.duration = await readyMusicInfo(ttsMp3)
-        const en = new Media()
-        en.wordName =  wordData.word
-        en.fileName = enFileName
-        en.type = MediaType.en
-        en.duration = await readyMusicInfo(enMp3)
-        const am = new Media()
-        am.wordName =  wordData.word
-        am.fileName =amFileName
-        am.type = MediaType.am
-        am.duration = await readyMusicInfo(amMp3)
-
-        const parts = wordData.parts.map(item=>{
-            const part = new Part()
-            part.wordName = wordData.word
-            part.part = item.part
-            part.means = item.means.join(',')
-            return part
-        })
-
-        const word = new Word()
-        word.er = formatExchange(wordData.exchange.word_er)
-        word.est = formatExchange(wordData.exchange.word_est)
-        word.done = formatExchange(wordData.exchange.word_done)
-        word.pl = formatExchange(wordData.exchange.word_pl)
-        word.ing = formatExchange(wordData.exchange.word_ing)
-        word.third = formatExchange(wordData.exchange.word_third)
-        word.past = formatExchange(wordData.exchange.word_past)
-        word.phEn = wordData.phEn ? `[${wordData.phEn}]` : ''
-        word.phAm = wordData.phAm ? `[${wordData.phAm}]`: ''
-        word.phOther = wordData.phOther ? `[${wordData.phOther}]` : ''
-        word.wordName = wordData.word || ''
-        word.medias = [tts, am, en]
-        word.parts = parts
-        await dataSource.getRepository(Word).save(word)
+async function process(dataSource: DataSource, wordName: string){
+    const wordData = await fetchWordTask(wordName)
+    if (!wordData){
+        throw new EvalError(`单词${wordName}不存在！`)
     }
+
+    logger.info(`${wordName}--${JSON.stringify(wordData)}`)
+
+    const word = new Word()
+
+    const amMp3 = await downloadResource(wordData.phAmMp3, downloadEnDir)
+    const enMp3 = await downloadResource(wordData.phEnMp3, downloadAMDir)
+    const ttsMp3 = await downloadResource(wordData.phTtsMp3, downloadTTSDir)
+    const amFileName = path.basename(amMp3)
+    const enFileName = path.basename(enMp3)
+    const ttsFileName = path.basename(ttsMp3)
+
+    const tts = new Media()
+    tts.wordName =  wordData.word
+    tts.fileName = ttsFileName
+    tts.type = MediaType.tts
+    tts.duration = await readyMusicInfo(ttsMp3)
+
+    const en = new Media()
+    en.wordName = wordData.word
+    en.fileName = enFileName
+    en.type = MediaType.en
+    en.duration = await readyMusicInfo(enMp3)
+
+    const am = new Media()
+    am.wordName =  wordData.word
+    am.fileName =amFileName
+    am.type = MediaType.am
+    am.duration = await readyMusicInfo(amMp3)
+
+    word.medias = [am, en, tts].filter(item=>item.fileName)
+
+
+    const parts = wordData.parts.map(item=>{
+        const part = new Part()
+        part.wordName = wordData.word
+        part.part = item.part
+        part.means = item.means.join(',')
+        return part
+    })
+
+    word.er = formatExchange(wordData.exchange.word_er)
+    word.est = formatExchange(wordData.exchange.word_est)
+    word.done = formatExchange(wordData.exchange.word_done)
+    word.pl = formatExchange(wordData.exchange.word_pl)
+    word.ing = formatExchange(wordData.exchange.word_ing)
+    word.third = formatExchange(wordData.exchange.word_third)
+    word.past = formatExchange(wordData.exchange.word_past)
+    word.phEn = wordData.phEn ? `[${wordData.phEn}]` : ''
+    word.phAm = wordData.phAm ? `[${wordData.phAm}]`: ''
+    word.phOther = wordData.phOther ? `[${wordData.phOther}]` : ''
+    word.wordName = wordData.word || ''
+    word.parts = parts
+    await dataSource.getRepository(Word).save(word)
+
 }
 
 function collectRunningInfo(taskList: TaskList){

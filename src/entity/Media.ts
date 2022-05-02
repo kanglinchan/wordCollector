@@ -18,7 +18,7 @@ export class Media {
     @Column({comment: '类型', type: 'enum', enum: MediaType})
     type: MediaType
 
-    @Column({comment: '时长'})
+    @Column({comment: '时长', type: 'float'})
     duration: number
 
     @ManyToOne(() => Word, word => word.medias)

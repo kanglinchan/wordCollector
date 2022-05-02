@@ -8,7 +8,7 @@ log4js.configure({
         },
         log_file: {// 记录器2：输出到文件
             type: 'file',
-            filename: __dirname + `/logs/${programName}.log`, // 文件目录，当目录文件或文件夹不存在时，会自动创建
+            filename: __dirname + `/../logs/${programName}.log`, // 文件目录，当目录文件或文件夹不存在时，会自动创建
             maxLogSize: 20971520, // 文件最大存储空间（byte），当文件内容超过文件存储空间会自动生成一个文件test.log.1的序列自增长的文件
             backups: 3, // default value = 5.当文件内容超过文件存储空间时，备份文件的数量
             // compress : true,//default false.是否以压缩的形式保存新文件,默认false。如果true，则新增的日志文件会保存在gz的压缩文件内，并且生成后将不被替换，false会被替换掉
@@ -16,7 +16,7 @@ log4js.configure({
         },
         data_file: {// ：记录器3：输出到日期文件
             type: 'dateFile',
-            filename: __dirname + `/logs/${programName}`, // 您要写入日志文件的路径
+            filename: __dirname + `/../logs/${programName}`, // 您要写入日志文件的路径
             alwaysIncludePattern: true, // （默认为false） - 将模式包含在当前日志文件的名称以及备份中
             daysToKeep: 10, // 时间文件 保存多少天，距离当前天daysToKeep以前的log将被删除
             // compress : true,//（默认为false） - 在滚动期间压缩备份文件（备份文件将具有.gz扩展名）
@@ -42,7 +42,7 @@ log4js.configure({
         error_log: { appenders: ['error_file'], level: 'error' }, // error 等级log 单独输出到error文件中 任何环境的errorlog 将都以日期文件单独记录
     },
 });
-const logger = log4js.getLogger();
+const logger = log4js.getLogger('production');
 // logger.info('test--------------->');
 // logger.debug('==================');
 // logger.error('error======');

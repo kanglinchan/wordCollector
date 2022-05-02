@@ -13,7 +13,7 @@ export const AppDataSource = new DataSource({
     password: "123456",
     database: "word_collect",
     synchronize: true,
-    logging: true,
+    logging: false,// 打印日志
     entities: [Word, Part, Media],
     // migrations: [],
     // subscribers: [],

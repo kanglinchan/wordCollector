@@ -1,4 +1,4 @@
-[
+export default  [
     "the",
     "be",
     "and",
@@ -9,7 +9,7 @@
     "have",
     "to",
     "it",
-    "I",
+    "i",
     "that",
     "for",
     "you",
@@ -27,7 +27,8 @@
     "from",
     "that",
     "not",
-    "n''t",
+    "n",
+    "t",
     "by",
     "she",
     "or",
