@@ -1,11 +1,11 @@
 import {Collection} from "../collection";
 
 export interface Exchange {
-    word_pl: string[];
-    word_third: string[];
-    word_past: string[];
-    word_done: string[];
-    word_ing: string[];
+    word_pl: string;
+    word_third: string;
+    word_past: string;
+    word_done: string;
+    word_ing: string;
     word_er: string;
     word_est: string;
 }
@@ -24,6 +24,16 @@ export interface Symbols {
     ph_tts_mp3: string;
     parts: Parts[];
 }
+//
+// export type Exchange = {
+//     word_pl: string,
+//     word_past: string,
+//     word_done: string,
+//     word_ing: string,
+//     word_third: string,
+//     word_er: string,
+//     word_est: string,
+// }
 
 export interface wordResponse {
     word_name: string;
@@ -58,4 +68,10 @@ export type RunInfo = {
     pending:number,
     waiting: number,
     isDone: boolean
+}
+
+export enum MediaType {
+    tts= 'tts',
+    en = 'en',
+    am= 'am',
 }

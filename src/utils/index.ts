@@ -16,9 +16,12 @@ export function getResourceName(url:string){
 }
 
 export async function downloadResource(url:string, dist=downloadTempDir){
+    if(!url){
+        return ''
+    }
     await download(url, dist);
     const name = getResourceName(url)
-    return path.join(downloadTempDir, name)
+    return path.join(dist, name)
 }
 
 

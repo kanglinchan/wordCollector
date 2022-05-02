@@ -1,15 +1,19 @@
 import path from "path";
-import * as fs from "fs";
 import axios from "axios";
 import ora from 'ora'
 import {DataSource} from "typeorm"
-import {RunInfo, Symbols, TaskList, TaskStatus, wordResponse} from './types'
+import {Exchange, MediaType, RunInfo, Symbols, TaskList, TaskStatus, wordResponse} from './types'
 import {Collection} from "./collection";
-import {createResourceUrl, downloadResource, splitWordText} from './utils'
+import {createResourceUrl, downloadResource, parseMusic} from './utils'
 import {AppDataSource} from "./data-source";
-import {downloadAMDir, downloadEnDir, inputTextPath} from "./config";
+import {downloadAMDir, downloadEnDir, downloadTTSDir} from "./config";
 import {Word} from "./entity/Word";
 import {Part} from "./entity/Part";
+import wordJSON from '../wordSource/test'
+import {Media} from "./entity/Media";
+import logger from "./logger";
+import {Error} from "sequelize";
+
 
 
 function fetchWordTask(word:string){
@@ -18,12 +22,18 @@ function fetchWordTask(word:string){
         if(res.status === 200){
             const data: wordResponse = res.data
             const symbol : Symbols = data.symbols[0]
+            const exchange: Exchange = res.data.exchange  || {}
             if(symbol){
                 return {
                     word: data.word_name,
                     phAmMp3: symbol.ph_am_mp3,
                     phEnMp3: symbol.ph_en_mp3,
-                    parts: symbol.parts
+                    phTtsMp3: symbol.ph_tts_mp3,
+                    parts: symbol.parts || [],
+                    phEn:symbol.ph_en,
+                    phAm: symbol.ph_am,
+                    phOther: symbol.ph_other,
+                    exchange: exchange
                 }
             }else{
                 return null
@@ -49,27 +59,78 @@ function fetchWordTask(word:string){
 //     }
 // })()
 
+/**
+ * 读取文件时长
+ * @param filePath
+ */
+async function readyMusicInfo(filePath:string){
+    if(filePath){
+        const info = await parseMusic(filePath);
+        return info && info.duration ? info.duration: 0
+    }
+    return 0
+}
+
+function formatExchange(exchange: [] | string){
+    if(!exchange){
+        return ''
+    }
+    if(Array.isArray(exchange)){
+        return exchange.join(',')
+    }
+    return exchange
+}
+
 async function process(dataSource: DataSource, word: string){
+    logger.info(word)
     const wordData = await fetchWordTask(word)
     if(wordData){
+        logger.info(`${JSON.stringify(wordData)}`)
         const amMp3 = await downloadResource(wordData.phAmMp3, downloadEnDir)
         const enMp3 = await downloadResource(wordData.phEnMp3, downloadAMDir)
+        const ttsMp3 = await downloadResource(wordData.phTtsMp3, downloadTTSDir)
         const amFileName = path.basename(amMp3)
         const enFileName = path.basename(enMp3)
-        if(amFileName && enFileName){
-            const word = new Word()
-            word.wordName = wordData.word
-            word.phAmMp3 = amFileName
-            word.phEnMp3 = enFileName
-            word.parts = wordData.parts.map(item=>{
-                const part = new Part()
-                part.wordName = wordData.word
-                part.part = item.part
-                part.means = item.means.join(',')
-                return part
-            })
-            await dataSource.getRepository(Word).save(word)
-        }
+        const ttsFileName = path.basename(ttsMp3)
+        const tts = new Media()
+        tts.wordName =  wordData.word
+        tts.fileName = ttsFileName
+        tts.type = MediaType.tts
+        tts.duration = await readyMusicInfo(ttsMp3)
+        const en = new Media()
+        en.wordName =  wordData.word
+        en.fileName = enFileName
+        en.type = MediaType.en
+        en.duration = await readyMusicInfo(enMp3)
+        const am = new Media()
+        am.wordName =  wordData.word
+        am.fileName =amFileName
+        am.type = MediaType.am
+        am.duration = await readyMusicInfo(amMp3)
+
+        const parts = wordData.parts.map(item=>{
+            const part = new Part()
+            part.wordName = wordData.word
+            part.part = item.part
+            part.means = item.means.join(',')
+            return part
+        })
+
+        const word = new Word()
+        word.er = formatExchange(wordData.exchange.word_er)
+        word.est = formatExchange(wordData.exchange.word_est)
+        word.done = formatExchange(wordData.exchange.word_done)
+        word.pl = formatExchange(wordData.exchange.word_pl)
+        word.ing = formatExchange(wordData.exchange.word_ing)
+        word.third = formatExchange(wordData.exchange.word_third)
+        word.past = formatExchange(wordData.exchange.word_past)
+        word.phEn = wordData.phEn ? `[${wordData.phEn}]` : ''
+        word.phAm = wordData.phAm ? `[${wordData.phAm}]`: ''
+        word.phOther = wordData.phOther ? `[${wordData.phOther}]` : ''
+        word.wordName = wordData.word || ''
+        word.medias = [tts, am, en]
+        word.parts = parts
+        await dataSource.getRepository(Word).save(word)
     }
 }
 
@@ -89,15 +150,14 @@ function collectRunningInfo(taskList: TaskList){
     try {
         const spinner = ora(`starting.......`).start();
         const dataSource = await AppDataSource.initialize()
-        // await AppDataSource.synchronize()
-        const wordText = fs.readFileSync(inputTextPath).toString();
-        const wordList = splitWordText(wordText)
+        const wordList = wordJSON || []
         const taskList = wordList.map(item=>({
             word: item,
             status: TaskStatus.waiting
         }))
         let index = 0
         const collection = new Collection({
+            cronExpression: '1/2 * * * * *',
             onTick(){
                 const task = taskList[index];
                 if(task){
@@ -105,8 +165,12 @@ function collectRunningInfo(taskList: TaskList){
                     process(dataSource, task.word)
                         .then(()=>{
                             task.status = TaskStatus.done
-                        }).catch(()=>{
+
+                        }).catch((e)=>{
                         task.status = TaskStatus.fail
+                        logger.error(JSON.stringify(task))
+                        logger.error(e.message)
+                        logger.debug(e.stack)
                     }).finally(()=>{
                         const info = collectRunningInfo(taskList)
                         this.emit('process', info)
@@ -127,7 +191,6 @@ function collectRunningInfo(taskList: TaskList){
                 if(dataSource.isInitialized){
                     await dataSource.destroy()
                 }
-
                 return
             }
             if(info.pending > 3){
@@ -142,9 +205,13 @@ function collectRunningInfo(taskList: TaskList){
                 spinner.text = 'pending process task count less than 3, restart'
                 collection.start()
             }
+            logger.info(info)
         })
-    }catch (e){
-        console.log(e)
+    }catch (error){
+        if(error instanceof Error){
+            logger.error(error.message)
+            logger.debug(error.stack)
+        }
     }
 
 })()

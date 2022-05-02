@@ -2,6 +2,7 @@ import "reflect-metadata"
 import { DataSource } from "typeorm"
 import { Word } from "./entity/Word"
 import { Part } from "./entity/Part"
+import {Media} from "./entity/Media";
 
 export const AppDataSource = new DataSource({
     name: 'default',
@@ -13,7 +14,7 @@ export const AppDataSource = new DataSource({
     database: "word_collect",
     synchronize: true,
     logging: true,
-    entities: [Word, Part],
+    entities: [Word, Part, Media],
     // migrations: [],
     // subscribers: [],
     // "entities": ["src/entity/**/*.{js,ts}"],

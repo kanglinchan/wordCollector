@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/index2.ts",
+    "start": "ts-node src/index.ts",
     "typeorm": "typeorm-ts-node-commonjs"
   },
   "keywords": [],
@@ -27,6 +27,7 @@
     "cron": "^1.8.2",
     "download": "^8.0.0",
     "kuler": "^2.0.0",
+    "log4js": "^6.4.6",
     "music-metadata": "^7.12.3",
     "ora": "5.4.1",
     "typescript": "^4.6.3"
