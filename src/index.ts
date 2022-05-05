@@ -1,12 +1,12 @@
 import path from "path";
 import axios from "axios";
 import ora from 'ora'
-import {DataSource} from "typeorm"
+import {DataSource, In} from "typeorm"
 import {Exchange, MediaType, RunInfo, Symbols, TaskList, TaskStatus, wordResponse} from './types'
 import {Collection} from "./collection";
 import {createResourceUrl, downloadResource, parseMusic} from './utils'
 import {AppDataSource} from "./data-source";
-import {downloadAMDir, downloadEnDir, downloadTTSDir} from "./config";
+import {downloadAMDir, downloadEnDir, downloadTTSDir, maxBlockCount} from "./config";
 import {Word} from "./entity/Word";
 import {Part} from "./entity/Part";
 import wordJSON from '../wordSource/2000word'
@@ -153,7 +153,7 @@ function collectRunningInfo(taskList: TaskList){
     }
 }
 
-(async ()=>{
+async function main(){
     try {
         const spinner = ora(`starting.......`).start();
         const dataSource = await AppDataSource.initialize()
@@ -200,16 +200,16 @@ function collectRunningInfo(taskList: TaskList){
                 }
                 return
             }
-            if(info.pending > 3){
-                spinner.text = 'pending process task more than 3, stop'
+            if(info.pending > maxBlockCount){
+                spinner.text = `pending process task more than ${maxBlockCount}, stop`
                 collection.stop()
                 return;
             }
         })
 
         collection.on('process', function (this: Collection, info: RunInfo){
-            if(!this.running && !info.isDone && info.pending <= 3){
-                spinner.text = 'pending process task count less than 3, restart'
+            if(!this.running && !info.isDone && info.pending <= maxBlockCount){
+                spinner.text = `pending process task count less than ${maxBlockCount}, restart`
                 collection.start()
             }
             logger.info(info)
@@ -221,7 +221,33 @@ function collectRunningInfo(taskList: TaskList){
         }
     }
 
-})()
+}
+
+// main()
+
+
+async function queryByWords(words: Array<string>){
+    const dataSource = await AppDataSource.initialize()
+    const result = await dataSource
+        .getRepository(Word)
+        .createQueryBuilder("word")
+        .leftJoinAndSelect("word.medias", 'media')
+        .leftJoinAndSelect("word.parts", 'part')
+        .where('word.word_name In (:...words)',{ words: words })
+        .groupBy('word.word_name')
+        .distinctOn(['word.word_name'])
+        .printSql()
+        .getMany()
+        // .getSql()
+    if(!dataSource.isInitialized){
+        await dataSource.destroy()
+    }
+    return result
+}
+
+queryByWords(['test', 'event', 'log']).then((data)=>{
+    console.log(JSON.stringify(data))
+})
 
 
 // collection.on('done', (params)=>{
